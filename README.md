@@ -1,19 +1,18 @@
 # libre
 
-A website written in noir. 
+A simple website for experimenting with clojurescript and canvas
 
 ## Usage
-
-If you use cake, substitute 'lein' with 'cake' below. Everything should work fine.
 
 ```bash
 lein deps
 lein run
+leint cljsbuild auto
 ```
 
 ## License
 
-Copyright (C) 2011 FIXME
+Copyright (C) 2011 Craig Brozefsky
 
 Distributed under the Eclipse Public License, the same as Clojure.
 
