@@ -43,7 +43,7 @@
   (canvas/entity {:x 0 :y 0 :r 1000}
                  nil
                  (fn [ctx shape]
-                   (set! (. ctx -fillStyle) "#aaa")
+                   (set! (.-fillStyle ctx) "#aaa")
                    (ellipse ctx 500 500 2000 1000)
                    (.fill ctx)
                    )))
@@ -52,7 +52,7 @@
   (canvas/entity {:x 0 :y 0 :r 1000}
                  nil
                  (fn [ctx shape]
-                   (set! (. ctx -fillStyle) "#eee")
+                   (set! (.-fillStyle ctx) "#eee")
                    (ellipse ctx 500 500 1200 1000)
                    (.fill ctx)
                    )))
@@ -64,13 +64,13 @@
      (let [name (:name seph)
            x (:x (:pillar seph))
            y (:y seph)]
-       (set! (. ctx -fillStyle) "#666")
+       (set! (.-fillStyle ctx) "#666")
        (circle ctx {:x x :y y :r 50})
        (.fill ctx)
-       (set! (. ctx -font) "15pt Sans")
-       (set! (. ctx -textAlign) "center")
-       (set! (. ctx -textBaseline) "middle")
-       (set! (. ctx -fillStyle) "#fff")
+       (set! (.-font ctx) "15pt Sans")
+       (set! (.-textAlign ctx) "center")
+       (set! (.-textBaseline ctx) "middle")
+       (set! (.-fillStyle ctx) "#fff")
        (.fillText ctx name x y)
        ))))
 
@@ -81,18 +81,17 @@
 
                    (.beginPath ctx)
                    (.moveTo ctx (:x (:pillar (:from path))) (:y (:from path)))
-                   (set! (. ctx -lineWidth) 20)
+                   (set! (.-lineWidth ctx) 20)
                    (.lineTo ctx (:x (:pillar (:to path))) (:y (:to path)))
-                   (set! (. ctx -strokeStyle) "#000")
+                   (set! (.-strokeStyle ctx) "#000")
                    (.stroke ctx)
                    
                    (.beginPath ctx)
                    (.moveTo ctx (:x (:pillar (:to path))) (:y (:to path)))
-                   (set! (. ctx -lineWidth) 18)
+                   (set! (.-lineWidth ctx) 18)
                    (.lineTo ctx (:x (:pillar (:from path))) (:y (:from path)))
-                   (set! (. ctx -strokeStyle) "#ffffff")
+                   (set! (.-strokeStyle ctx) "#ffffff")
                    (.stroke ctx)
-                   
                    )))
 
 

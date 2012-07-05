@@ -497,6 +497,15 @@ goog.base = function(me, opt_methodName, var_args) {
 goog.scope = function(fn) {
   fn.call(goog.global)
 };
+goog.provide("goog.debug.Error");
+goog.debug.Error = function(opt_msg) {
+  this.stack = (new Error).stack || "";
+  if(opt_msg) {
+    this.message = String(opt_msg)
+  }
+};
+goog.inherits(goog.debug.Error, Error);
+goog.debug.Error.prototype.name = "CustomError";
 goog.provide("goog.string");
 goog.provide("goog.string.Unicode");
 goog.string.Unicode = {NBSP:"\u00a0"};
@@ -924,15 +933,6 @@ goog.string.toSelectorCaseCache_ = {};
 goog.string.toSelectorCase = function(str) {
   return goog.string.toSelectorCaseCache_[str] || (goog.string.toSelectorCaseCache_[str] = String(str).replace(/([A-Z])/g, "-$1").toLowerCase())
 };
-goog.provide("goog.debug.Error");
-goog.debug.Error = function(opt_msg) {
-  this.stack = (new Error).stack || "";
-  if(opt_msg) {
-    this.message = String(opt_msg)
-  }
-};
-goog.inherits(goog.debug.Error, Error);
-goog.debug.Error.prototype.name = "CustomError";
 goog.provide("goog.asserts");
 goog.provide("goog.asserts.AssertionError");
 goog.require("goog.debug.Error");
@@ -21073,6 +21073,129 @@ clojure.browser.event.has_listener = function has_listener(obj, opt_type, opt_ca
 clojure.browser.event.remove_all = function remove_all(opt_obj, opt_type, opt_capt) {
   return null
 };
+goog.provide("goog.json");
+goog.provide("goog.json.Serializer");
+goog.json.isValid_ = function(s) {
+  if(/^\s*$/.test(s)) {
+    return false
+  }
+  var backslashesRe = /\\["\\\/bfnrtu]/g;
+  var simpleValuesRe = /"[^"\\\n\r\u2028\u2029\x00-\x08\x10-\x1f\x80-\x9f]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g;
+  var openBracketsRe = /(?:^|:|,)(?:[\s\u2028\u2029]*\[)+/g;
+  var remainderRe = /^[\],:{}\s\u2028\u2029]*$/;
+  return remainderRe.test(s.replace(backslashesRe, "@").replace(simpleValuesRe, "]").replace(openBracketsRe, ""))
+};
+goog.json.parse = function(s) {
+  var o = String(s);
+  if(goog.json.isValid_(o)) {
+    try {
+      return eval("(" + o + ")")
+    }catch(ex) {
+    }
+  }
+  throw Error("Invalid JSON string: " + o);
+};
+goog.json.unsafeParse = function(s) {
+  return eval("(" + s + ")")
+};
+goog.json.Replacer;
+goog.json.serialize = function(object, opt_replacer) {
+  return(new goog.json.Serializer(opt_replacer)).serialize(object)
+};
+goog.json.Serializer = function(opt_replacer) {
+  this.replacer_ = opt_replacer
+};
+goog.json.Serializer.prototype.serialize = function(object) {
+  var sb = [];
+  this.serialize_(object, sb);
+  return sb.join("")
+};
+goog.json.Serializer.prototype.serialize_ = function(object, sb) {
+  switch(typeof object) {
+    case "string":
+      this.serializeString_(object, sb);
+      break;
+    case "number":
+      this.serializeNumber_(object, sb);
+      break;
+    case "boolean":
+      sb.push(object);
+      break;
+    case "undefined":
+      sb.push("null");
+      break;
+    case "object":
+      if(object == null) {
+        sb.push("null");
+        break
+      }
+      if(goog.isArray(object)) {
+        this.serializeArray_(object, sb);
+        break
+      }
+      this.serializeObject_(object, sb);
+      break;
+    case "function":
+      break;
+    default:
+      throw Error("Unknown type: " + typeof object);
+  }
+};
+goog.json.Serializer.charToJsonCharCache_ = {'"':'\\"', "\\":"\\\\", "/":"\\/", "\u0008":"\\b", "\u000c":"\\f", "\n":"\\n", "\r":"\\r", "\t":"\\t", "\x0B":"\\u000b"};
+goog.json.Serializer.charsToReplace_ = /\uffff/.test("\uffff") ? /[\\\"\x00-\x1f\x7f-\uffff]/g : /[\\\"\x00-\x1f\x7f-\xff]/g;
+goog.json.Serializer.prototype.serializeString_ = function(s, sb) {
+  sb.push('"', s.replace(goog.json.Serializer.charsToReplace_, function(c) {
+    if(c in goog.json.Serializer.charToJsonCharCache_) {
+      return goog.json.Serializer.charToJsonCharCache_[c]
+    }
+    var cc = c.charCodeAt(0);
+    var rv = "\\u";
+    if(cc < 16) {
+      rv += "000"
+    }else {
+      if(cc < 256) {
+        rv += "00"
+      }else {
+        if(cc < 4096) {
+          rv += "0"
+        }
+      }
+    }
+    return goog.json.Serializer.charToJsonCharCache_[c] = rv + cc.toString(16)
+  }), '"')
+};
+goog.json.Serializer.prototype.serializeNumber_ = function(n, sb) {
+  sb.push(isFinite(n) && !isNaN(n) ? n : "null")
+};
+goog.json.Serializer.prototype.serializeArray_ = function(arr, sb) {
+  var l = arr.length;
+  sb.push("[");
+  var sep = "";
+  for(var i = 0;i < l;i++) {
+    sb.push(sep);
+    var value = arr[i];
+    this.serialize_(this.replacer_ ? this.replacer_.call(arr, String(i), value) : value, sb);
+    sep = ","
+  }
+  sb.push("]")
+};
+goog.json.Serializer.prototype.serializeObject_ = function(obj, sb) {
+  sb.push("{");
+  var sep = "";
+  for(var key in obj) {
+    if(Object.prototype.hasOwnProperty.call(obj, key)) {
+      var value = obj[key];
+      if(typeof value != "function") {
+        sb.push(sep);
+        this.serializeString_(key, sb);
+        sb.push(":");
+        this.serialize_(this.replacer_ ? this.replacer_.call(obj, key, value) : value, sb);
+        sep = ","
+      }
+    }
+  }
+  sb.push("}")
+};
 goog.provide("goog.structs");
 goog.require("goog.array");
 goog.require("goog.object");
@@ -23819,129 +23942,6 @@ goog.dom.DomHelper.prototype.getNodeTextOffset = goog.dom.getNodeTextOffset;
 goog.dom.DomHelper.prototype.getAncestorByTagNameAndClass = goog.dom.getAncestorByTagNameAndClass;
 goog.dom.DomHelper.prototype.getAncestorByClass = goog.dom.getAncestorByClass;
 goog.dom.DomHelper.prototype.getAncestor = goog.dom.getAncestor;
-goog.provide("goog.json");
-goog.provide("goog.json.Serializer");
-goog.json.isValid_ = function(s) {
-  if(/^\s*$/.test(s)) {
-    return false
-  }
-  var backslashesRe = /\\["\\\/bfnrtu]/g;
-  var simpleValuesRe = /"[^"\\\n\r\u2028\u2029\x00-\x08\x10-\x1f\x80-\x9f]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g;
-  var openBracketsRe = /(?:^|:|,)(?:[\s\u2028\u2029]*\[)+/g;
-  var remainderRe = /^[\],:{}\s\u2028\u2029]*$/;
-  return remainderRe.test(s.replace(backslashesRe, "@").replace(simpleValuesRe, "]").replace(openBracketsRe, ""))
-};
-goog.json.parse = function(s) {
-  var o = String(s);
-  if(goog.json.isValid_(o)) {
-    try {
-      return eval("(" + o + ")")
-    }catch(ex) {
-    }
-  }
-  throw Error("Invalid JSON string: " + o);
-};
-goog.json.unsafeParse = function(s) {
-  return eval("(" + s + ")")
-};
-goog.json.Replacer;
-goog.json.serialize = function(object, opt_replacer) {
-  return(new goog.json.Serializer(opt_replacer)).serialize(object)
-};
-goog.json.Serializer = function(opt_replacer) {
-  this.replacer_ = opt_replacer
-};
-goog.json.Serializer.prototype.serialize = function(object) {
-  var sb = [];
-  this.serialize_(object, sb);
-  return sb.join("")
-};
-goog.json.Serializer.prototype.serialize_ = function(object, sb) {
-  switch(typeof object) {
-    case "string":
-      this.serializeString_(object, sb);
-      break;
-    case "number":
-      this.serializeNumber_(object, sb);
-      break;
-    case "boolean":
-      sb.push(object);
-      break;
-    case "undefined":
-      sb.push("null");
-      break;
-    case "object":
-      if(object == null) {
-        sb.push("null");
-        break
-      }
-      if(goog.isArray(object)) {
-        this.serializeArray_(object, sb);
-        break
-      }
-      this.serializeObject_(object, sb);
-      break;
-    case "function":
-      break;
-    default:
-      throw Error("Unknown type: " + typeof object);
-  }
-};
-goog.json.Serializer.charToJsonCharCache_ = {'"':'\\"', "\\":"\\\\", "/":"\\/", "\u0008":"\\b", "\u000c":"\\f", "\n":"\\n", "\r":"\\r", "\t":"\\t", "\x0B":"\\u000b"};
-goog.json.Serializer.charsToReplace_ = /\uffff/.test("\uffff") ? /[\\\"\x00-\x1f\x7f-\uffff]/g : /[\\\"\x00-\x1f\x7f-\xff]/g;
-goog.json.Serializer.prototype.serializeString_ = function(s, sb) {
-  sb.push('"', s.replace(goog.json.Serializer.charsToReplace_, function(c) {
-    if(c in goog.json.Serializer.charToJsonCharCache_) {
-      return goog.json.Serializer.charToJsonCharCache_[c]
-    }
-    var cc = c.charCodeAt(0);
-    var rv = "\\u";
-    if(cc < 16) {
-      rv += "000"
-    }else {
-      if(cc < 256) {
-        rv += "00"
-      }else {
-        if(cc < 4096) {
-          rv += "0"
-        }
-      }
-    }
-    return goog.json.Serializer.charToJsonCharCache_[c] = rv + cc.toString(16)
-  }), '"')
-};
-goog.json.Serializer.prototype.serializeNumber_ = function(n, sb) {
-  sb.push(isFinite(n) && !isNaN(n) ? n : "null")
-};
-goog.json.Serializer.prototype.serializeArray_ = function(arr, sb) {
-  var l = arr.length;
-  sb.push("[");
-  var sep = "";
-  for(var i = 0;i < l;i++) {
-    sb.push(sep);
-    var value = arr[i];
-    this.serialize_(this.replacer_ ? this.replacer_.call(arr, String(i), value) : value, sb);
-    sep = ","
-  }
-  sb.push("]")
-};
-goog.json.Serializer.prototype.serializeObject_ = function(obj, sb) {
-  sb.push("{");
-  var sep = "";
-  for(var key in obj) {
-    if(Object.prototype.hasOwnProperty.call(obj, key)) {
-      var value = obj[key];
-      if(typeof value != "function") {
-        sb.push(sep);
-        this.serializeString_(key, sb);
-        sb.push(":");
-        this.serialize_(this.replacer_ ? this.replacer_.call(obj, key, value) : value, sb);
-        sep = ","
-      }
-    }
-  }
-  sb.push("}")
-};
 goog.provide("goog.structs.Collection");
 goog.structs.Collection = function() {
 };
@@ -27554,6 +27554,93 @@ monet.canvas.restart = function restart(mc) {
   monet.canvas.update_loop.call(null, mc);
   return monet.canvas.draw_loop.call(null, mc)
 };
+goog.provide("jayq.util");
+goog.require("cljs.core");
+jayq.util.map__GT_js = function map__GT_js(m) {
+  var out__10617 = {};
+  var G__10618__10619 = cljs.core.seq.call(null, m);
+  if(G__10618__10619) {
+    var G__10621__10623 = cljs.core.first.call(null, G__10618__10619);
+    var vec__10622__10624 = G__10621__10623;
+    var k__10625 = cljs.core.nth.call(null, vec__10622__10624, 0, null);
+    var v__10626 = cljs.core.nth.call(null, vec__10622__10624, 1, null);
+    var G__10618__10627 = G__10618__10619;
+    var G__10621__10628 = G__10621__10623;
+    var G__10618__10629 = G__10618__10627;
+    while(true) {
+      var vec__10630__10631 = G__10621__10628;
+      var k__10632 = cljs.core.nth.call(null, vec__10630__10631, 0, null);
+      var v__10633 = cljs.core.nth.call(null, vec__10630__10631, 1, null);
+      var G__10618__10634 = G__10618__10629;
+      out__10617[cljs.core.name.call(null, k__10632)] = v__10633;
+      var temp__3974__auto____10635 = cljs.core.next.call(null, G__10618__10634);
+      if(temp__3974__auto____10635) {
+        var G__10618__10636 = temp__3974__auto____10635;
+        var G__10637 = cljs.core.first.call(null, G__10618__10636);
+        var G__10638 = G__10618__10636;
+        G__10621__10628 = G__10637;
+        G__10618__10629 = G__10638;
+        continue
+      }else {
+      }
+      break
+    }
+  }else {
+  }
+  return out__10617
+};
+jayq.util.wait = function wait(ms, func) {
+  return setTimeout(func, ms)
+};
+jayq.util.log = function() {
+  var log__delegate = function(v, text) {
+    var vs__10640 = cljs.core.string_QMARK_.call(null, v) ? cljs.core.apply.call(null, cljs.core.str, v, text) : v;
+    return console.log(vs__10640)
+  };
+  var log = function(v, var_args) {
+    var text = null;
+    if(goog.isDef(var_args)) {
+      text = cljs.core.array_seq(Array.prototype.slice.call(arguments, 1), 0)
+    }
+    return log__delegate.call(this, v, text)
+  };
+  log.cljs$lang$maxFixedArity = 1;
+  log.cljs$lang$applyTo = function(arglist__10641) {
+    var v = cljs.core.first(arglist__10641);
+    var text = cljs.core.rest(arglist__10641);
+    return log__delegate(v, text)
+  };
+  log.cljs$lang$arity$variadic = log__delegate;
+  return log
+}();
+jayq.util.clj__GT_js = function clj__GT_js(x) {
+  if(cljs.core.string_QMARK_.call(null, x)) {
+    return x
+  }else {
+    if(cljs.core.keyword_QMARK_.call(null, x)) {
+      return cljs.core.name.call(null, x)
+    }else {
+      if(cljs.core.map_QMARK_.call(null, x)) {
+        return cljs.core.reduce.call(null, function(m, p__10647) {
+          var vec__10648__10649 = p__10647;
+          var k__10650 = cljs.core.nth.call(null, vec__10648__10649, 0, null);
+          var v__10651 = cljs.core.nth.call(null, vec__10648__10649, 1, null);
+          return cljs.core.assoc.call(null, m, clj__GT_js.call(null, k__10650), clj__GT_js.call(null, v__10651))
+        }, cljs.core.ObjMap.EMPTY, x).strobj
+      }else {
+        if(cljs.core.coll_QMARK_.call(null, x)) {
+          return cljs.core.apply.call(null, cljs.core.array, cljs.core.map.call(null, clj__GT_js, x))
+        }else {
+          if("\ufdd0'else") {
+            return x
+          }else {
+            return null
+          }
+        }
+      }
+    }
+  }
+};
 goog.provide("clojure.string");
 goog.require("cljs.core");
 goog.require("goog.string.StringBuffer");
@@ -27742,93 +27829,6 @@ clojure.string.escape = function escape(s, cmap) {
       continue
     }
     break
-  }
-};
-goog.provide("jayq.util");
-goog.require("cljs.core");
-jayq.util.map__GT_js = function map__GT_js(m) {
-  var out__10617 = {};
-  var G__10618__10619 = cljs.core.seq.call(null, m);
-  if(G__10618__10619) {
-    var G__10621__10623 = cljs.core.first.call(null, G__10618__10619);
-    var vec__10622__10624 = G__10621__10623;
-    var k__10625 = cljs.core.nth.call(null, vec__10622__10624, 0, null);
-    var v__10626 = cljs.core.nth.call(null, vec__10622__10624, 1, null);
-    var G__10618__10627 = G__10618__10619;
-    var G__10621__10628 = G__10621__10623;
-    var G__10618__10629 = G__10618__10627;
-    while(true) {
-      var vec__10630__10631 = G__10621__10628;
-      var k__10632 = cljs.core.nth.call(null, vec__10630__10631, 0, null);
-      var v__10633 = cljs.core.nth.call(null, vec__10630__10631, 1, null);
-      var G__10618__10634 = G__10618__10629;
-      out__10617[cljs.core.name.call(null, k__10632)] = v__10633;
-      var temp__3974__auto____10635 = cljs.core.next.call(null, G__10618__10634);
-      if(temp__3974__auto____10635) {
-        var G__10618__10636 = temp__3974__auto____10635;
-        var G__10637 = cljs.core.first.call(null, G__10618__10636);
-        var G__10638 = G__10618__10636;
-        G__10621__10628 = G__10637;
-        G__10618__10629 = G__10638;
-        continue
-      }else {
-      }
-      break
-    }
-  }else {
-  }
-  return out__10617
-};
-jayq.util.wait = function wait(ms, func) {
-  return setTimeout(func, ms)
-};
-jayq.util.log = function() {
-  var log__delegate = function(v, text) {
-    var vs__10640 = cljs.core.string_QMARK_.call(null, v) ? cljs.core.apply.call(null, cljs.core.str, v, text) : v;
-    return console.log(vs__10640)
-  };
-  var log = function(v, var_args) {
-    var text = null;
-    if(goog.isDef(var_args)) {
-      text = cljs.core.array_seq(Array.prototype.slice.call(arguments, 1), 0)
-    }
-    return log__delegate.call(this, v, text)
-  };
-  log.cljs$lang$maxFixedArity = 1;
-  log.cljs$lang$applyTo = function(arglist__10641) {
-    var v = cljs.core.first(arglist__10641);
-    var text = cljs.core.rest(arglist__10641);
-    return log__delegate(v, text)
-  };
-  log.cljs$lang$arity$variadic = log__delegate;
-  return log
-}();
-jayq.util.clj__GT_js = function clj__GT_js(x) {
-  if(cljs.core.string_QMARK_.call(null, x)) {
-    return x
-  }else {
-    if(cljs.core.keyword_QMARK_.call(null, x)) {
-      return cljs.core.name.call(null, x)
-    }else {
-      if(cljs.core.map_QMARK_.call(null, x)) {
-        return cljs.core.reduce.call(null, function(m, p__10647) {
-          var vec__10648__10649 = p__10647;
-          var k__10650 = cljs.core.nth.call(null, vec__10648__10649, 0, null);
-          var v__10651 = cljs.core.nth.call(null, vec__10648__10649, 1, null);
-          return cljs.core.assoc.call(null, m, clj__GT_js.call(null, k__10650), clj__GT_js.call(null, v__10651))
-        }, cljs.core.ObjMap.EMPTY, x).strobj
-      }else {
-        if(cljs.core.coll_QMARK_.call(null, x)) {
-          return cljs.core.apply.call(null, cljs.core.array, cljs.core.map.call(null, clj__GT_js, x))
-        }else {
-          if("\ufdd0'else") {
-            return x
-          }else {
-            return null
-          }
-        }
-      }
-    }
   }
 };
 goog.provide("jayq.core");
@@ -28481,27 +28481,27 @@ goog.exportSymbol("libre.tarot.repl", libre.tarot.repl);
 libre.tarot.middle_pillar = cljs.core.ObjMap.fromObject(["\ufdd0'x"], {"\ufdd0'x":500});
 libre.tarot.pillar_of_severity = cljs.core.ObjMap.fromObject(["\ufdd0'x"], {"\ufdd0'x":250});
 libre.tarot.pillar_of_mercy = cljs.core.ObjMap.fromObject(["\ufdd0'x"], {"\ufdd0'x":750});
-libre.tarot.rect = function rect(ctx, p__1281951) {
-  var map__1281960__1281961 = p__1281951;
-  var map__1281960__1281962 = cljs.core.seq_QMARK_.call(null, map__1281960__1281961) ? cljs.core.apply.call(null, cljs.core.hash_map, map__1281960__1281961) : map__1281960__1281961;
-  var fill__1281963 = cljs.core._lookup.call(null, map__1281960__1281962, "\ufdd0'fill", null);
-  var h__1281964 = cljs.core._lookup.call(null, map__1281960__1281962, "\ufdd0'h", null);
-  var w__1281965 = cljs.core._lookup.call(null, map__1281960__1281962, "\ufdd0'w", null);
-  var y__1281966 = cljs.core._lookup.call(null, map__1281960__1281962, "\ufdd0'y", null);
-  var x__1281967 = cljs.core._lookup.call(null, map__1281960__1281962, "\ufdd0'x", null);
+libre.tarot.rect = function rect(ctx, p__26056) {
+  var map__26065__26066 = p__26056;
+  var map__26065__26067 = cljs.core.seq_QMARK_.call(null, map__26065__26066) ? cljs.core.apply.call(null, cljs.core.hash_map, map__26065__26066) : map__26065__26066;
+  var fill__26068 = cljs.core._lookup.call(null, map__26065__26067, "\ufdd0'fill", null);
+  var h__26069 = cljs.core._lookup.call(null, map__26065__26067, "\ufdd0'h", null);
+  var w__26070 = cljs.core._lookup.call(null, map__26065__26067, "\ufdd0'w", null);
+  var y__26071 = cljs.core._lookup.call(null, map__26065__26067, "\ufdd0'y", null);
+  var x__26072 = cljs.core._lookup.call(null, map__26065__26067, "\ufdd0'x", null);
   ctx.beginPath();
-  ctx.rect(x__1281967, y__1281966, w__1281965, h__1281964);
+  ctx.rect(x__26072, y__26071, w__26070, h__26069);
   ctx.closePath();
   return ctx
 };
-libre.tarot.circle = function circle(ctx, p__1281968) {
-  var map__1281975__1281976 = p__1281968;
-  var map__1281975__1281977 = cljs.core.seq_QMARK_.call(null, map__1281975__1281976) ? cljs.core.apply.call(null, cljs.core.hash_map, map__1281975__1281976) : map__1281975__1281976;
-  var r__1281978 = cljs.core._lookup.call(null, map__1281975__1281977, "\ufdd0'r", null);
-  var y__1281979 = cljs.core._lookup.call(null, map__1281975__1281977, "\ufdd0'y", null);
-  var x__1281980 = cljs.core._lookup.call(null, map__1281975__1281977, "\ufdd0'x", null);
+libre.tarot.circle = function circle(ctx, p__26073) {
+  var map__26080__26081 = p__26073;
+  var map__26080__26082 = cljs.core.seq_QMARK_.call(null, map__26080__26081) ? cljs.core.apply.call(null, cljs.core.hash_map, map__26080__26081) : map__26080__26081;
+  var r__26083 = cljs.core._lookup.call(null, map__26080__26082, "\ufdd0'r", null);
+  var y__26084 = cljs.core._lookup.call(null, map__26080__26082, "\ufdd0'y", null);
+  var x__26085 = cljs.core._lookup.call(null, map__26080__26082, "\ufdd0'x", null);
   ctx.beginPath();
-  ctx.arc(x__1281980, y__1281979, r__1281978, 0, Math.PI * 2, true);
+  ctx.arc(x__26085, y__26084, r__26083, 0, Math.PI * 2, true);
   ctx.closePath();
   return ctx
 };
@@ -28530,17 +28530,17 @@ libre.tarot.ain_soph_aur = function ain_soph_aur() {
 goog.exportSymbol("libre.tarot.ain_soph_aur", libre.tarot.ain_soph_aur);
 libre.tarot.sephiroth = function sephiroth(seph) {
   return monet.canvas.entity.call(null, seph, null, function(ctx, seph) {
-    var name__1281984 = (new cljs.core.Keyword("\ufdd0'name")).call(null, seph);
-    var x__1281985 = (new cljs.core.Keyword("\ufdd0'x")).call(null, (new cljs.core.Keyword("\ufdd0'pillar")).call(null, seph));
-    var y__1281986 = (new cljs.core.Keyword("\ufdd0'y")).call(null, seph);
+    var name__26089 = (new cljs.core.Keyword("\ufdd0'name")).call(null, seph);
+    var x__26090 = (new cljs.core.Keyword("\ufdd0'x")).call(null, (new cljs.core.Keyword("\ufdd0'pillar")).call(null, seph));
+    var y__26091 = (new cljs.core.Keyword("\ufdd0'y")).call(null, seph);
     ctx.fillStyle = "#666";
-    libre.tarot.circle.call(null, ctx, cljs.core.ObjMap.fromObject(["\ufdd0'x", "\ufdd0'y", "\ufdd0'r"], {"\ufdd0'x":x__1281985, "\ufdd0'y":y__1281986, "\ufdd0'r":50}));
+    libre.tarot.circle.call(null, ctx, cljs.core.ObjMap.fromObject(["\ufdd0'x", "\ufdd0'y", "\ufdd0'r"], {"\ufdd0'x":x__26090, "\ufdd0'y":y__26091, "\ufdd0'r":50}));
     ctx.fill();
     ctx.font = "15pt Sans";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#fff";
-    return ctx.fillText(name__1281984, x__1281985, y__1281986)
+    return ctx.fillText(name__26089, x__26090, y__26091)
   })
 };
 goog.exportSymbol("libre.tarot.sephiroth", libre.tarot.sephiroth);
@@ -28567,8 +28567,8 @@ libre.tarot.sephiroth_map = cljs.core.ObjMap.fromObject(["\ufdd0'kether", "\ufdd
 "\ufdd0'number", "\ufdd0'pillar", "\ufdd0'y"], {"\ufdd0'name":"binah", "\ufdd0'number":3, "\ufdd0'pillar":libre.tarot.pillar_of_severity, "\ufdd0'y":200}), "\ufdd0'tiphareth":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'pillar", "\ufdd0'y"], {"\ufdd0'name":"tiphareth", "\ufdd0'number":6, "\ufdd0'pillar":libre.tarot.middle_pillar, "\ufdd0'y":500}), "\ufdd0'geburah":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'pillar", "\ufdd0'y"], {"\ufdd0'name":"geburah", 
 "\ufdd0'number":5, "\ufdd0'pillar":libre.tarot.pillar_of_severity, "\ufdd0'y":400}), "\ufdd0'yesod":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'pillar", "\ufdd0'y"], {"\ufdd0'name":"yesod", "\ufdd0'number":9, "\ufdd0'pillar":libre.tarot.middle_pillar, "\ufdd0'y":700})});
 libre.tarot.add_sephiroth = function add_sephiroth(mc, name) {
-  var spec__1281988 = name.call(null, libre.tarot.sephiroth_map);
-  return monet.canvas.add_entity.call(null, mc, name, libre.tarot.sephiroth.call(null, spec__1281988))
+  var spec__26093 = name.call(null, libre.tarot.sephiroth_map);
+  return monet.canvas.add_entity.call(null, mc, name, libre.tarot.sephiroth.call(null, spec__26093))
 };
 libre.tarot.path_map = cljs.core.ObjMap.fromObject(["\ufdd0'teth", "\ufdd0'qoph", "\ufdd0'vav", "\ufdd0'daleth", "\ufdd0'cheth", "\ufdd0'tav", "\ufdd0'samekh", "\ufdd0'ayin", "\ufdd0'peh", "\ufdd0'aleph", "\ufdd0'heh", "\ufdd0'lamed", "\ufdd0'yod", "\ufdd0'gimel", "\ufdd0'caph", "\ufdd0'zayin", "\ufdd0'tzaddi", "\ufdd0'mem", "\ufdd0'shin", "\ufdd0'nun", "\ufdd0'beth", "\ufdd0'resh"], {"\ufdd0'teth":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'from", "\ufdd0'to"], {"\ufdd0'name":"teth", 
 "\ufdd0'number":19, "\ufdd0'from":"\ufdd0'chesed", "\ufdd0'to":"\ufdd0'geburah"}), "\ufdd0'qoph":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'from", "\ufdd0'to"], {"\ufdd0'name":"qoph", "\ufdd0'number":29, "\ufdd0'from":"\ufdd0'netzach", "\ufdd0'to":"\ufdd0'malkuth"}), "\ufdd0'vav":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'from", "\ufdd0'to"], {"\ufdd0'name":"vav", "\ufdd0'number":16, "\ufdd0'from":"\ufdd0'chokmah", "\ufdd0'to":"\ufdd0'chesed"}), 
@@ -28581,30 +28581,30 @@ libre.tarot.path_map = cljs.core.ObjMap.fromObject(["\ufdd0'teth", "\ufdd0'qoph"
 "\ufdd0'from":"\ufdd0'geburah", "\ufdd0'to":"\ufdd0'hod"}), "\ufdd0'shin":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'from", "\ufdd0'to"], {"\ufdd0'name":"shin", "\ufdd0'number":31, "\ufdd0'from":"\ufdd0'hod", "\ufdd0'to":"\ufdd0'malkuth"}), "\ufdd0'nun":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'from", "\ufdd0'to"], {"\ufdd0'name":"nun", "\ufdd0'number":24, "\ufdd0'from":"\ufdd0'tiphareth", "\ufdd0'to":"\ufdd0'netzach"}), "\ufdd0'beth":cljs.core.ObjMap.fromObject(["\ufdd0'name", 
 "\ufdd0'number", "\ufdd0'from", "\ufdd0'to"], {"\ufdd0'name":"beth", "\ufdd0'number":12, "\ufdd0'from":"\ufdd0'kether", "\ufdd0'to":"\ufdd0'binah"}), "\ufdd0'resh":cljs.core.ObjMap.fromObject(["\ufdd0'name", "\ufdd0'number", "\ufdd0'from", "\ufdd0'to"], {"\ufdd0'name":"resh", "\ufdd0'number":30, "\ufdd0'from":"\ufdd0'hod", "\ufdd0'to":"\ufdd0'yesod"})});
 libre.tarot.add_path = function add_path(mc, name) {
-  var spec__1281990 = name.call(null, libre.tarot.path_map);
-  return monet.canvas.add_entity.call(null, mc, name, libre.tarot.tree_path.call(null, cljs.core._lookup.call(null, libre.tarot.sephiroth_map, (new cljs.core.Keyword("\ufdd0'from")).call(null, spec__1281990), null), cljs.core._lookup.call(null, libre.tarot.sephiroth_map, (new cljs.core.Keyword("\ufdd0'to")).call(null, spec__1281990), null)))
+  var spec__26095 = name.call(null, libre.tarot.path_map);
+  return monet.canvas.add_entity.call(null, mc, name, libre.tarot.tree_path.call(null, cljs.core._lookup.call(null, libre.tarot.sephiroth_map, (new cljs.core.Keyword("\ufdd0'from")).call(null, spec__26095), null), cljs.core._lookup.call(null, libre.tarot.sephiroth_map, (new cljs.core.Keyword("\ufdd0'to")).call(null, spec__26095), null)))
 };
 libre.tarot.drawtree = function drawtree() {
-  var mc__1282004 = monet.canvas.init.call(null, jayq.core.$.call(null, "\ufdd0'#tree").get(0));
-  monet.canvas.add_entity.call(null, mc__1282004, "\ufdd0'ain", monet.canvas.entity.call(null, cljs.core.ObjMap.fromObject(["\ufdd0'x", "\ufdd0'y", "\ufdd0'h", "\ufdd0'w"], {"\ufdd0'x":0, "\ufdd0'y":0, "\ufdd0'h":1E3, "\ufdd0'w":1E3}), null, function(ctx, box) {
+  var mc__26109 = monet.canvas.init.call(null, jayq.core.$.call(null, "\ufdd0'#tree").get(0));
+  monet.canvas.add_entity.call(null, mc__26109, "\ufdd0'ain", monet.canvas.entity.call(null, cljs.core.ObjMap.fromObject(["\ufdd0'x", "\ufdd0'y", "\ufdd0'h", "\ufdd0'w"], {"\ufdd0'x":0, "\ufdd0'y":0, "\ufdd0'h":1E3, "\ufdd0'w":1E3}), null, function(ctx, box) {
     ctx.fillStyle = "#000";
     return libre.tarot.rect.call(null, ctx, box).fill(ctx)
   }));
-  monet.canvas.add_entity.call(null, mc__1282004, "\ufdd0'ain-soph", libre.tarot.ain_soph.call(null));
-  monet.canvas.add_entity.call(null, mc__1282004, "\ufdd0'ain-soph-aur", libre.tarot.ain_soph_aur.call(null));
-  var G__1282005__1282006 = cljs.core.seq.call(null, cljs.core.keys.call(null, libre.tarot.path_map));
-  if(G__1282005__1282006) {
-    var s__1282007 = cljs.core.first.call(null, G__1282005__1282006);
-    var G__1282005__1282008 = G__1282005__1282006;
+  monet.canvas.add_entity.call(null, mc__26109, "\ufdd0'ain-soph", libre.tarot.ain_soph.call(null));
+  monet.canvas.add_entity.call(null, mc__26109, "\ufdd0'ain-soph-aur", libre.tarot.ain_soph_aur.call(null));
+  var G__26110__26111 = cljs.core.seq.call(null, cljs.core.keys.call(null, libre.tarot.path_map));
+  if(G__26110__26111) {
+    var s__26112 = cljs.core.first.call(null, G__26110__26111);
+    var G__26110__26113 = G__26110__26111;
     while(true) {
-      libre.tarot.add_path.call(null, mc__1282004, s__1282007);
-      var temp__3974__auto____1282009 = cljs.core.next.call(null, G__1282005__1282008);
-      if(temp__3974__auto____1282009) {
-        var G__1282005__1282010 = temp__3974__auto____1282009;
-        var G__1282017 = cljs.core.first.call(null, G__1282005__1282010);
-        var G__1282018 = G__1282005__1282010;
-        s__1282007 = G__1282017;
-        G__1282005__1282008 = G__1282018;
+      libre.tarot.add_path.call(null, mc__26109, s__26112);
+      var temp__3974__auto____26114 = cljs.core.next.call(null, G__26110__26113);
+      if(temp__3974__auto____26114) {
+        var G__26110__26115 = temp__3974__auto____26114;
+        var G__26122 = cljs.core.first.call(null, G__26110__26115);
+        var G__26123 = G__26110__26115;
+        s__26112 = G__26122;
+        G__26110__26113 = G__26123;
         continue
       }else {
       }
@@ -28612,19 +28612,19 @@ libre.tarot.drawtree = function drawtree() {
     }
   }else {
   }
-  var G__1282011__1282012 = cljs.core.seq.call(null, cljs.core.reverse.call(null, cljs.core.keys.call(null, libre.tarot.sephiroth_map)));
-  if(G__1282011__1282012) {
-    var s__1282013 = cljs.core.first.call(null, G__1282011__1282012);
-    var G__1282011__1282014 = G__1282011__1282012;
+  var G__26116__26117 = cljs.core.seq.call(null, cljs.core.reverse.call(null, cljs.core.keys.call(null, libre.tarot.sephiroth_map)));
+  if(G__26116__26117) {
+    var s__26118 = cljs.core.first.call(null, G__26116__26117);
+    var G__26116__26119 = G__26116__26117;
     while(true) {
-      libre.tarot.add_sephiroth.call(null, mc__1282004, s__1282013);
-      var temp__3974__auto____1282015 = cljs.core.next.call(null, G__1282011__1282014);
-      if(temp__3974__auto____1282015) {
-        var G__1282011__1282016 = temp__3974__auto____1282015;
-        var G__1282019 = cljs.core.first.call(null, G__1282011__1282016);
-        var G__1282020 = G__1282011__1282016;
-        s__1282013 = G__1282019;
-        G__1282011__1282014 = G__1282020;
+      libre.tarot.add_sephiroth.call(null, mc__26109, s__26118);
+      var temp__3974__auto____26120 = cljs.core.next.call(null, G__26116__26119);
+      if(temp__3974__auto____26120) {
+        var G__26116__26121 = temp__3974__auto____26120;
+        var G__26124 = cljs.core.first.call(null, G__26116__26121);
+        var G__26125 = G__26116__26121;
+        s__26118 = G__26124;
+        G__26116__26119 = G__26125;
         continue
       }else {
         return null

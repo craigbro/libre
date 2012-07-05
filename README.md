@@ -7,7 +7,7 @@ A simple website for experimenting with clojurescript and canvas
 ```bash
 lein deps
 lein run
-leint cljsbuild auto
+lein cljsbuild auto
 ```
 
 ## License
