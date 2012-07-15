@@ -1,6 +1,7 @@
 (ns libre.tarot
   (:use [jayq.core :only [$]])
-  (:require [monet.canvas :as canvas]
+  (:require [libre.painter :as painter]
+            [monet.canvas :as canvas]
             [clojure.browser.repl :as repl]))
 
 ; Use of "localhost" will only work for local development.
@@ -270,7 +271,6 @@
     (canvas/add-entity mc name
                        (tree-path (get sephiroth-map (:from spec))
                                   (get sephiroth-map (:to spec))))))
-
 
 (defn ^:export drawtree []
   (let [mc (canvas/init (.get ($ :#tree) 0))]
