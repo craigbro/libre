@@ -1,5 +1,6 @@
 (ns libre.sketch
-  (:require [clojure.string :as string]))
+  (:require [clojure.string :as string]
+            [libre.sketchbook :as book]))
 
 (def ^:dynamic *processing* nil)
 
@@ -17,7 +18,7 @@
     
     (-add-sketch-handler processing sketch :draw "draw")
     (-add-sketch-handler processing sketch :setup "setup")
-
+    
     (-add-sketch-handler processing sketch :mouse-clicked "mouseClicked")
     (-add-sketch-handler processing sketch :mouse-dragged "mouseDragged")
     (-add-sketch-handler processing sketch :mouse-moved "mouseMoved")
@@ -26,7 +27,7 @@
     (-add-sketch-handler processing sketch :mouse-over "mouseOver")
     (-add-sketch-handler processing sketch :mouse-pressed "mousePressed")
     (-add-sketch-handler processing sketch :mouse-released "mouseReleased")
-
+    
     (-add-sketch-handler processing sketch :key-pressed "keyPressed")
     (-add-sketch-handler processing sketch :key-released "keyReleased")
     (-add-sketch-handler processing sketch :key-typed "keyTyped")
@@ -36,7 +37,6 @@
 (defn -lookup-constant [c]
   (let [k (string/upper-case (name c))]
     (aget (.-PConstants *processing*) k)))
-
 
 (def PI (.-PI js/Math))
 (def HALF_PI (/ PI 2))
@@ -528,8 +528,6 @@
 (defn no-draw-loop []
   (. *processing* (noLoop)))
 
-     
-
 (defn random
   ([high] (. *processing* (random high)))
   ([low high] (. *processing* (random low high))))
@@ -540,23 +538,12 @@
          (random (sketch-height))
          diameter)))
 
-(defn test []
-  (let [canvas (.get (jayq.core/$ :#sketch) 0)
-        p (js/Processing. canvas
-                          (sketch-init
-                           {:setup
-                            (fn []
-                              (size (- (screen-width) 50)
-                                    (- (screen-height) 50))
-                              (smooth)
-                              (background 255))
-                            :key-typed (fn [] (background 255))
-                            :draw (fn []
-                                    (fill 255 1)
-                                    (no-stroke)
-                                    (rect 0 0 (sketch-width) (sketch-height))
-                                    (fill (random 255) (random 255) (random 255))
-                                    (stroke-weight (random 10))
-                                    (stroke 0 (random 255))
-                                    (random-circle))}))]
-    (set! *processing* p)))
+(defn run-sketch [canvas sketch]
+  (let [target (cond
+                (string? canvas)
+                (.get (jayq.core/$ canvas) 0)
+                (keyword? canvas)
+                (.get (jayq.core/$ canvas) 0)
+                true
+                canvas)]
+    (js/Processing. target (sketch-init sketch))))

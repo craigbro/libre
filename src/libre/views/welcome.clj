@@ -26,14 +26,23 @@
                                     });")
     ]))
 
-(defpage "/sketch" []
+(defpage [:get "/sketchbook"] []
   (common/layout
-   [:h1 "Welcome to libre sketch"]
+   [:h1#title "Welcome to Libre Sketchbook"]
+   [:div#container
+    (hiccup.element/javascript-tag "$(document).ready(function(){
+                                      libre.tarot.repl();
+                                      libre.sketchbook.show_index();
+                                    });")]))
+
+(defpage [:get "/sketchbook/:name"] {:keys [name] :as params}
+  (common/layout
+   [:h1#title "Welcome to Libre Sketchbook"]
    [:div#canvas-container
     [:canvas#sketch {:width "1000" :height "1000"}]
     (hiccup.element/javascript-tag "$(document).ready(function(){
                                       libre.tarot.repl();
-                                      libre.sketch.test();
-                                    });")
-    ]))
+                                      libre.sketchbook.run_from_url();
+                                    });")]))
+
 
