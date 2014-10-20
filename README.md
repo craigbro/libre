@@ -1,5 +1,18 @@
 # libre
 
+A [Chestnut](https://github.com/plexus/chestnut) for experimenting
+with clojurescript, Processing, and Om. It includes a Clojurescript
+wrapper for Processing.js (libre.sketch) and basic sketchbook
+functionality (libre.sketchbook)
+
+For info on Processing.js: http://processingjs.org/
+
+This is a [Chestnut](https://github.com/plexus/chestnut) project, so
+it supports automatic browser updating, live cljs evaluation via a
+browser REPL, as well as deployment to Heroku.
+
+Some example sketches can be found in
+`src/cljs/libre/sketches/color-walk.cljs`
 
 ## Development
 
@@ -29,25 +42,22 @@ in 21.36 seconds.`, you're ready to go. Browse to
 **Attention: It is not longer needed to run `lein fighwheel`
   separately. This is now taken care of behind the scenes**
 
+**Emacs Users: be sure you are running the latest cider-nrepl and
+  clojure-mode from the MELPA archive.
+
 ## Trying it out
 
-If all is well you now have a browser window saying 'Hello Chestnut',
-and a REPL prompt that looks like `cljs.user=>`.
-
-Open `resources/public/css/style.css` and change some styling of the
-H1 element. Notice how it's updated instantly in the browser.
-
-Open `src/cljs/chestnut/core.cljs`, and change `dom/h1` to
-`dom/h2`. As soon as you save the file, your browser is updated.
+If all is well you now have a browser window with a Processing sketch
+running in it, and a REPL prompt that looks like `cljs.user=>`.
 
 In the REPL, type
 
 ```
-(ns chestnut.core)
-(swap! app-state assoc :text "Interactivity FTW")
+(ns libre.core)
+(swap! app-state assoc :sketch-name "random-circles")
 ```
 
-Notice again how the browser updates.
+Notice again how the browser updates and now shows a different sketch.
 
 ## Deploying to Heroku
 
@@ -82,7 +92,7 @@ Now your app is running at
 
 ## License
 
-Copyright © 2014 FIXME
+Copyright © 2014 Craig Brozefsky
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
