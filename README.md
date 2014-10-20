@@ -43,7 +43,7 @@ in 21.36 seconds.`, you're ready to go. Browse to
   separately. This is now taken care of behind the scenes**
 
 **Emacs Users: be sure you are running the latest cider-nrepl and
-  clojure-mode from the MELPA archive.
+  clojure-mode from the MELPA archive.**
 
 ## Trying it out
 
