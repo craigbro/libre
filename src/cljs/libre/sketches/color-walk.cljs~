@@ -1,6 +1,0 @@
-(ns libre.sketches.colorwalk
-  (:use [libre.sketchbook :only [defsketch]])
-  (:require [libre.sketch :as sk]))
-
-
-        
