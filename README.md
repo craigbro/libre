@@ -20,6 +20,11 @@ Start a REPL (in a terminal: `lein repl`, or from Emacs: open a
 clj/cljs file in the project, then do `M-x cider-jack-in`. Make sure
 CIDER is up to date).
 
+**Emacs Users: be sure you are running the latest CIDER and
+  clojure-mode from the MELPA archive.  Also ensure you have the
+  lastest cider-nrepl lein plugin (0.8.0-snapshot is known to work) **
+
+
 In the REPL do
 
 ```clojure
@@ -42,8 +47,6 @@ in 21.36 seconds.`, you're ready to go. Browse to
 **Attention: It is not longer needed to run `lein fighwheel`
   separately. This is now taken care of behind the scenes**
 
-**Emacs Users: be sure you are running the latest cider-nrepl and
-  clojure-mode from the MELPA archive.**
 
 ## Trying it out
 
